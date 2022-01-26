@@ -124,6 +124,7 @@ class System:
             self._config_path = None
 
         self._config_object = self.load_config(self._config_path)
+        self._update_config_object()
         self.config = Config(self.__class__.__name__, dct=config)
         self.config.load(self._config_object)
 
@@ -176,6 +177,7 @@ class System:
                               np_divide={'ignore', 'warn', 'raise', 'call', 'print', 'log'},
                               np_invalid={'ignore', 'warn', 'raise', 'call', 'print', 'log'},
                               )
+
         self.config.check()
         self._set_numpy()
 
@@ -214,6 +216,39 @@ class System:
         np.seterr(divide=self.config.np_divide,
                   invalid=self.config.np_invalid,
                   )
+
+    def _update_config_object(self):
+        """
+        Change config on the fly based on command-line options.
+        """
+
+        config_option = self.options.get('config_option', None)
+        if config_option is None:
+            return
+
+        if len(config_option) == 0:
+            return
+
+        newobj = False
+        if self._config_object is None:
+            self._config_object = configparser.ConfigParser()
+            newobj = True
+
+        for item in config_option:
+            if item.count('=') != 1 or item.count('.') != 1:
+                logger.error("Invalid config_option option: {}".format(item))
+                continue
+
+            field, value = item.split("=")
+            section, key = field.split(".")
+
+            if not newobj:
+                self._config_object.set(section, key, value)
+                logger.debug("Config option set: {}={}".format(field, value))
+            else:
+                self._config_object.add_section(section)
+                self._config_object.set(section, key, value)
+                logger.debug("Config option added: [{}] {}={}".format(section, field, value))
 
     def reload(self, case, **kwargs):
         """
@@ -655,8 +690,7 @@ class System:
         use_parallel = bool(self.config.numba_parallel)
         nopython = bool(self.config.numba_nopython)
 
-        logger.info("Numba compilation initiated with caching. Parallel=%s.",
-                    use_parallel)
+        logger.info("Numba compilation initiated with caching.")
 
         for mdl in models.values():
             mdl.numba_jitify(parallel=use_parallel,
@@ -704,7 +738,7 @@ class System:
                     name='Process {0:d}'.format(idx),
                     target=_precompile_model,
                     args=(mdl,),
-                    )
+                )
                 jobs.append(job)
                 job.start()
 
@@ -909,14 +943,14 @@ class System:
         self.call_models('l_update_var', models,
                          dae_t=self.dae.t, niter=niter, err=err)
 
-    def l_update_eq(self, models:  OrderedDict):
+    def l_update_eq(self, models:  OrderedDict, init=False):
         """
         Update equation-dependent limiter discrete components by calling ``l_check_eq`` of models.
         Force set equations after evaluating equations.
 
         This function is must be called after differential equation updates.
         """
-        self.call_models('l_check_eq', models)
+        self.call_models('l_check_eq', models, init=init)
 
     def s_update_var(self, models: OrderedDict):
         """
@@ -1662,12 +1696,16 @@ class System:
                 for model in group.models.values():
                     # the below includes all of BaseParam (NumParam, DataParam and ExtParam)
                     if item not in model.__dict__:
+                        if item in model.group_param_exception:
+                            continue
                         raise KeyError(f'Group <{group.class_name}> common param <{item}> does not exist '
                                        f'in model <{model.class_name}>')
             for item in group.common_vars:
                 for model in group.models.values():
                     if item not in model.cache.all_vars:
-                        raise KeyError(f'Group <{group.class_name}> common param <{item}> does not exist '
+                        if item in model.group_var_exception:
+                            continue
+                        raise KeyError(f'Group <{group.class_name}> common var <{item}> does not exist '
                                        f'in model <{model.class_name}>')
 
     def collect_ref(self):

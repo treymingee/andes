@@ -150,8 +150,8 @@ class ESST1AModel(ExcBase, ExcVsum):
                                    v_str='vf0 - SWVOS_s2 * SG + LR_y',
                                    info='VA (LA_y) initial value')
 
-        self.vref.v_str = 'v + (vf0 - SWVOS_s2 * SG + LR_y) / KA - SWVOS_s1 * SG - SWUEL_s1 * UEL'
-        self.vref.v_iter = 'v + (vf0 - SWVOS_s2 * SG + LR_y) / KA - SWVOS_s1 * SG - SWUEL_s1 * UEL'
+        self.vref.v_str = 'ue * (v + (vf0 - SWVOS_s2 * SG + LR_y) / KA - SWVOS_s1 * SG - SWUEL_s1 * UEL)'
+        self.vref.v_iter = 'ue * (v + (vf0 - SWVOS_s2 * SG + LR_y) / KA - SWVOS_s1 * SG - SWUEL_s1 * UEL)'
 
         self.vref0 = PostInitService(info='Initial reference voltage input',
                                      tex_name='V_{ref0}',
@@ -161,10 +161,9 @@ class ESST1AModel(ExcBase, ExcVsum):
         self.vi = Algeb(info='Total input voltages',
                         tex_name='V_i',
                         unit='p.u.',
-                        e_str='ue * (-LG_y + vref - WF_y + SWUEL_s1 * UEL + SWVOS_s1 * SG + Vs - vi)',
+                        e_str='ue * (-LG_y + vref - WF_y + SWUEL_s1 * UEL + SWVOS_s1 * SG + Vs) - vi',
                         v_iter='ue * (-LG_y + vref - WF_y + SWUEL_s1 * UEL + SWVOS_s1 * SG + Vs)',
                         v_str='ue * (-LG_y + vref - WF_y + SWUEL_s1 * UEL + SWVOS_s1 * SG + Vs)',
-                        diag_eps=True,
                         )
 
         self.vil = GainLimiter(u=self.vi,
@@ -176,7 +175,7 @@ class ESST1AModel(ExcBase, ExcVsum):
         self.UEL2 = Algeb(tex_name='UEL_2',
                           info='UEL_2 as HVG1 u1',
                           v_str='ue * (SWUEL_s2 * UEL + (1 - SWUEL_s2) * llim)',
-                          e_str='ue * (SWUEL_s2 * UEL + (1 - SWUEL_s2) * llim - UEL2)',
+                          e_str='ue * (SWUEL_s2 * UEL + (1 - SWUEL_s2) * llim) - UEL2',
                           )
         self.HVG1 = HVGate(u1=self.UEL2,
                            u2=self.vil_y,
@@ -209,13 +208,13 @@ class ESST1AModel(ExcBase, ExcVsum):
                          info='V_A after subtraction, as HVG u2',
                          v_str='ue * (SWVOS_s2 * SG + LA_y - LR_y)',
                          v_iter='ue * (SWVOS_s2 * SG + LA_y - LR_y)',
-                         e_str='ue * (SWVOS_s2 * SG + LA_y - LR_y - vas)',
+                         e_str='ue * (SWVOS_s2 * SG + LA_y - LR_y) - vas',
                          )
 
         self.UEL3 = Algeb(tex_name='UEL_3',
                           info='UEL_3 as HVG u1',
                           v_str='ue * (SWUEL_s3 * UEL + (1 - SWUEL_s3) * llim)',
-                          e_str='ue * (SWUEL_s3 * UEL + (1 - SWUEL_s3) * llim - UEL3)',
+                          e_str='ue * (SWUEL_s3 * UEL + (1 - SWUEL_s3) * llim) - UEL3',
                           )
         self.HVG = HVGate(u1=self.UEL3,
                           u2=self.vas,
@@ -263,7 +262,7 @@ class ESST1AModel(ExcBase, ExcVsum):
                           info='V_F, Stablizing circuit feedback',
                           )
 
-        self.vout.e_str = 'ue * (vol_y  - vout)'
+        self.vout.e_str = 'ue * vol_y  - vout'
 
 
 class ESST1A(ESST1AData, ESST1AModel):
