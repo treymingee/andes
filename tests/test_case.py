@@ -297,15 +297,40 @@ class TestIslands(unittest.TestCase):
         self.assertEqual(len(ss.Bus.islands), 2)
 
 
-class TestPVD1Init(unittest.TestCase):
+class TestCaseInit(unittest.TestCase):
     """
-    Test if PVD1 model initialization works.
+    Test if initializations pass.
     """
+
     def test_pvd1_init(self):
+        """
+        Test if PVD1 model initialization works.
+        """
         ss = andes.run(get_case('ieee14/ieee14_pvd1.json'),
                        no_output=True,
                        default_config=True,
                        )
+        ss.config.warn_limits = 0
+        ss.config.warn_abnormal = 0
+
+        ss.TDS.init()
+
+        self.assertEqual(ss.exit_code, 0, "Exit code is not 0.")
+
+    def test_exac1_init(self):
+        """
+        Test EXAC1 initialization with one TGOV1 at lower limit.
+        """
+        ss = andes.load(get_case('ieee14/ieee14_exac1.json'),
+                        no_output=True,
+                        default_config=True,
+                        )
+        ss.PV.config.pv2pq = 1
+        ss.PFlow.run()
+
+        # suppress EXAC1 warning from select
+        np.seterr(invalid='ignore')
+
         ss.config.warn_limits = 0
         ss.config.warn_abnormal = 0
 
