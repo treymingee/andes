@@ -20,14 +20,18 @@ class EVControlData(EV2Data):
         #Replace Icmin and Icmax with power min/max.
         self.Pcmin = NumParam(default=0.0, info='Minimum charging power',
                             tex_name='P_{c,min}',
-                            unit='A',
+                            unit='MW',
                             )
         self.Pcmax = NumParam(default=69.0, info='Maximum charging current', #Will change depending on SOC of cluster
                             tex_name='P_{c,max}',
-                            unit='A',
+                            unit='MW',
                             )
-        self.fthreshold = NumParam(default=0.6, info='Frequency threshold for charge control to activate',
-                            tex_name='f_{threshold}',
+        self.FThresMax = NumParam(default=60.6, info='Frequency threshold maxmimum to trigger charge control participation',
+                            tex_name='f_{threshold,max}',
+                            unit='Hz',
+                            )
+        self.FThresMin = NumParam(default=59.4, info='Frequency threshold minimum to trigger charge control participation',
+                            tex_name='f_{threshold,min}',
                             unit='Hz',
                             )
         self.NumEV = NumParam(default=100,
@@ -70,22 +74,21 @@ class EVControlModel(EV2Model):
                            tex_name='P_{cluster}'
                            )
         
-        #If freqdev is larger than freqtheshold (0.6Hz for now), apply power change. Can use the deadband comparer?
+        #If freqdev is larger than freqtheshold (0.6Hz for now), apply power change. 
         self.freqDev = Algeb(info='COI Frequency deviation from 60Hz',
                              v_str='COI - 60',
                              e_str='COI - 60 - freqDev',
                             )
                             
-        self.freqDB = DeadBand(u=self.freqDev, center=60, lower=59.4,
-                            upper=60.6, tex_name='FreqDB',
-                            info='deadband for COI speed',
+        self.freqDB = DeadBand(u=self.freqDev, center=60, lower=self.FThresMin,
+                            upper=self.FThresMax, tex_name='FreqDB',
+                            info='Deadband for COI speed',
                             )
         
         #Define charge control equation based on freqDB
         self.Pnew = Algeb(info='Charging power after comparing COI frequency deviation to 60Hz',#Should this be self.Pe?
-                          v_str='(Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zl + Pcluster*freqDB_zi + (Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zu',
-                          e_str='(Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zl + Pcluster*freqDB_zi + (Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zu - Pnew'
+                          v_str='(Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zl - (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster)*freqDB_zu',
+                          e_str='(Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zl - (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster)*freqDB_zu - Pnew'
         )
 
-#TODO: Define charge control equation as function of COI freq. deviation outside threshold
         
