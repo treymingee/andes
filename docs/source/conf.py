@@ -30,18 +30,26 @@
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
+import sphinx_rtd_theme
+import andes
+import shutil
+
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.githubpages',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
+    'sphinx.ext.doctest',
+    'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'sphinx_panels',
     'IPython.sphinxext.ipython_directive',
     'IPython.sphinxext.ipython_console_highlighting',
     'matplotlib.sphinxext.plot_directive',
     'numpydoc',
     'sphinx_copybutton',
+    'myst_nb',
 ]
 
 # Configuration options for plot_directive. See:
@@ -67,14 +75,13 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'ANDES'
-copyright = '2021, Hantao Cui'
+copyright = '2022, Hantao Cui'
 author = 'Hantao Cui'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-import andes
 # The short X.Y version.
 version = andes.__version__
 # The full version, including alpha/beta/rc tags.
@@ -104,15 +111,25 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
-import sphinx_rtd_theme
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+html_theme = "pydata_sphinx_theme"
+# html_theme = 'sphinx_rtd_theme'
+# html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "use_edit_page_button": True,
+}
+
+html_context = {
+    "github_url": "https://github.com",
+    "github_user": "cuihantao",
+    "github_repo": "andes",
+    "github_version": "master",
+    "doc_path": "doc/source",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -124,13 +141,13 @@ html_static_path = ['_static']
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    '**': [
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-    ]
-}
 
+# html_sidebars = {
+#     '**': [
+#         'relations.html',  # needs 'show_related': True theme option to display
+#         'searchbox.html',
+#     ]
+# }
 
 # -- Options for HTMLHelp output ------------------------------------------
 
@@ -197,6 +214,7 @@ intersphinx_mapping = {
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable', None),
     'matplotlib': ('https://matplotlib.org', None),
+    'sympy': ('https://docs.sympy.org/latest/', None),
 }
 
 # Favorite icon
@@ -207,4 +225,14 @@ html_favicon = 'images/curent.ico'
 smartquotes = False
 
 # import and execute model reference generation script
-exec(open("modelref.py").read())
+exec(open("genmodelref.py").read())
+
+shutil.rmtree("examples", ignore_errors=True)
+shutil.copytree("../../examples", "examples", )
+shutil.rmtree("examples/demonstration")
+
+jupyter_execute_notebooks = "off"
+
+# sphinx-panels shouldn't add bootstrap css since the pydata-sphinx-theme
+# already loads it
+panels_add_bootstrap_css = False

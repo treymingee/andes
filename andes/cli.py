@@ -5,12 +5,11 @@ ANDES command-line interface and argument parsers.
 import argparse
 import importlib
 import logging
-import os
 import platform
 import sys
 from time import strftime
 
-from ._version import get_versions
+from andes.shared import NCPUS_PHYSICAL
 
 from andes.main import config_logger, find_log_path
 from andes.routines import routine_cli
@@ -36,16 +35,12 @@ def create_parser():
              'or 40-ERROR.',
         type=int, default=20, choices=(1, 10, 20, 30, 40))
 
-    parser.add_argument(
-        '--version', help='show version info and exit', action='store_true')
-
     sub_parsers = parser.add_subparsers(dest='command', help='[run] run simulation routine; '
                                                              '[plot] plot results; '
                                                              '[doc] quick documentation; '
                                                              '[misc] misc. functions; '
                                                              '[prepare] prepare the numerical code; '
                                                              '[selftest] run self test; '
-                                                             '[demo] show demos.',
                                         )
 
     run = sub_parsers.add_parser('run')
@@ -59,7 +54,7 @@ def create_parser():
     run.add_argument('-P', '--pert', help='Perturbation file path', default='')
     run.add_argument('-o', '--output-path', help='Output path prefix', type=str, default='')
     run.add_argument('-n', '--no-output', help='Force no output of any kind', action='store_true')
-    run.add_argument('--ncpu', help='Number of parallel processes', type=int, default=os.cpu_count())
+    run.add_argument('--ncpu', help='Number of parallel processes', type=int, default=NCPUS_PHYSICAL)
     run.add_argument('--dime-address', help='DiME streaming server protocol, address and port,'
                                             'e.g., tcp://127.0.0.1:5000 or ipc:///tmp/dime2', type=str)
     run.add_argument('--tf', help='End time of time-domain simulation', type=float)
@@ -146,6 +141,7 @@ def create_parser():
                       help='Set configuration option specificied by '
                       'NAME.FIELD=VALUE with no space. For example, "TDS.tf=2"',
                       type=str, default='', nargs='*')
+    misc.add_argument('--version', action='store_true', help='Display version information')
 
     prep = sub_parsers.add_parser('prepare', aliases=command_aliases['prepare'])
     prep_mode = prep.add_mutually_exclusive_group()
@@ -159,7 +155,7 @@ def create_parser():
     prep.add_argument('--pycode-path', help='Save path for generated pycode')
     prep.add_argument('-m', '--models', nargs='*', help='model names to be individually prepared',
                       )
-    prep.add_argument('--ncpu', help='Number of parallel processes', type=int, default=os.cpu_count())
+    prep.add_argument('--ncpu', help='Number of parallel processes', type=int, default=NCPUS_PHYSICAL)
     prep.add_argument('--nomp', help='Disable multiprocessing', action='store_true',)
     prep.add_argument('--incubate', help='Save generated pycode under the ANDES code directory to avoid codegen',
                       action='store_true')
@@ -202,10 +198,6 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    if args.version is True:
-        print(get_versions()['version'])
-        return
-
     # Set up logging
     config_logger(stream=True,
                   stream_level=args.verbose,
@@ -216,7 +208,7 @@ def main():
 
     module = importlib.import_module('andes.main')
 
-    if args.command in ('plot', 'doc'):
+    if args.command in ('plot', 'doc', 'misc'):
         pass
     elif args.command == 'run' and args.no_preamble is True:
         pass

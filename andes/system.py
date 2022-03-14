@@ -29,7 +29,7 @@ from andes.io.streaming import Streaming
 from andes.models import file_classes
 from andes.models.group import GroupBase
 from andes.routines import all_routines
-from andes.shared import (Pool, Process, dilled_vars, jac_names, matrix, np,
+from andes.shared import (NCPUS_PHYSICAL, Pool, Process, dilled_vars, jac_names, matrix, np,
                           sparse, spmatrix,)
 from andes.utils.misc import elapsed
 from andes.utils.paths import (andes_root, confirm_overwrite, get_config_path,
@@ -106,15 +106,16 @@ class System:
             self.options.update(options)
         if kwargs:
             self.options.update(kwargs)
-        self.calls = OrderedDict()         # a dictionary with model names (keys) and their ``calls`` instance
-        self.models = OrderedDict()        # model names and instances
-        self.groups = OrderedDict()        # group names and instances
-        self.routines = OrderedDict()      # routine names and instances
-        self.switch_times = np.array([])   # an array of ordered event switching times
-        self.switch_dict = OrderedDict()   # time: OrderedDict of associated models
-        self.with_calls = False            # if generated function calls have been loaded
-        self.n_switches = 0                # number of elements in `self.switch_times`
-        self.exit_code = 0                 # command-line exit code, 0 - normal, others - error.
+        self.calls = OrderedDict()           # a dictionary with model names (keys) and their ``calls`` instance
+        self.models = OrderedDict()          # model names and instances
+        self.model_aliases = OrderedDict()   # alias: model instance
+        self.groups = OrderedDict()          # group names and instances
+        self.routines = OrderedDict()        # routine names and instances
+        self.switch_times = np.array([])     # an array of ordered event switching times
+        self.switch_dict = OrderedDict()     # time: OrderedDict of associated models
+        self.with_calls = False              # if generated function calls have been loaded
+        self.n_switches = 0                  # number of elements in `self.switch_times`
+        self.exit_code = 0                   # command-line exit code, 0 - normal, others - error.
 
         # get and load default config file
         self._config_path = get_config_path()
@@ -269,7 +270,7 @@ class System:
         self._adders = dict(f=list(), g=list(), x=list(), y=list())
         self._setters = dict(f=list(), g=list(), x=list(), y=list())
 
-    def prepare(self, quick=False, incremental=False, models=None, nomp=False, ncpu=os.cpu_count()):
+    def prepare(self, quick=False, incremental=False, models=None, nomp=False, ncpu=NCPUS_PHYSICAL):
         """
         Generate numerical functions from symbolically defined models.
 
@@ -517,7 +518,7 @@ class System:
 
         This methods calls the ``add`` method of `model` and registers the device `idx` to group.
         """
-        if model not in self.models:
+        if model not in self.models and (model not in self.model_aliases):
             logger.warning("<%s> is not an existing model.", model)
             return
 
@@ -533,7 +534,7 @@ class System:
             param_dict.update(kwargs)
 
         idx = param_dict.pop('idx', None)
-        if idx is np.nan:
+        if idx is not None and (not isinstance(idx, str) and np.isnan(idx)):
             idx = None
 
         idx = group.get_next_idx(idx=idx, model_name=model)
@@ -700,7 +701,7 @@ class System:
     def precompile(self,
                    models: Union[OrderedDict, None] = None,
                    nomp: bool = False,
-                   ncpu: int = os.cpu_count()):
+                   ncpu: int = NCPUS_PHYSICAL):
         """
         Trigger precompilation for the given models.
 
@@ -1076,7 +1077,10 @@ class System:
 
         if self.config.ipadd:
             self.dae.gy.ipset(self.config.diag_eps, aidx, aidx)
+            self.dae.gy.ipset(0.0, aidx, vidx)
+
             self.dae.gy.ipset(self.config.diag_eps, vidx, vidx)
+            self.dae.gy.ipset(0.0, vidx, aidx)
         else:
             avals = [-self.dae.gy[int(idx), int(idx)] + self.config.diag_eps for idx in aidx]
             vvals = [-self.dae.gy[int(idx), int(idx)] + self.config.diag_eps for idx in vidx]
@@ -1303,8 +1307,11 @@ class System:
 
         if len(island_sets) == 0:
             logger.info("  No island detected.")
+        elif len(island_sets) == 1:
+            logger.info("  System is interconnected.")
+            logger.debug("  Bus indices in interconnected system (0-based): %s", island_sets)
         else:
-            logger.info("  A total of %d island(s) detected.", len(island_sets))
+            logger.info("  System contains %d island(s).", len(island_sets))
             logger.debug("  Bus indices in islanded areas (0-based): %s", island_sets)
 
         if len(nosw_island) > 0:
@@ -1506,9 +1513,9 @@ class System:
 
                 try:
                     loaded_calls = dill.load(f)
-                    logger.info('Loaded generated code from pkl file "%s"', self.config.pickle_path)
+                    logger.info('> Loaded generated code from pkl file "%s"', self.config.pickle_path)
                 except (IOError, EOFError, AttributeError):
-                    logger.debug('Cannot open pkl file at "%s"', self.config.pickle_path)
+                    logger.debug('> Cannot open pkl file at "%s"', self.config.pickle_path)
 
         return loaded_calls
 
@@ -1804,6 +1811,9 @@ class System:
                 # link to the group
                 group_name = self.__dict__[model_name].group
                 self.__dict__[group_name].add_model(model_name, self.__dict__[model_name])
+        for key, val in andes.models.model_aliases.items():
+            self.model_aliases[key] = self.models[val]
+            self.__dict__[key] = self.models[val]
 
     def import_routines(self):
         """
@@ -1990,7 +2000,7 @@ class System:
 
         conf = configparser.ConfigParser()
         conf.read(conf_path)
-        logger.info('Loaded config from file "%s"', conf_path)
+        logger.info('> Loaded config from file "%s"', conf_path)
         return conf
 
     def save_config(self, file_path=None, overwrite=False):
@@ -2105,9 +2115,9 @@ def load_pycode_from_path(pycode_path):
             pycode = importlib.util.module_from_spec(spec)  # NOQA
             sys.modules[spec.name] = pycode
             spec.loader.exec_module(pycode)
-            logger.info('Loaded generated Python code in "%s".', pycode_path)
+            logger.info('> Loaded generated Python code in "%s".', pycode_path)
         except ImportError:
-            logger.debug('Failed loading generated Python code in "%s".', pycode_path)
+            logger.debug('> Failed loading generated Python code in "%s".', pycode_path)
 
     return pycode
 
@@ -2124,7 +2134,7 @@ def reload_submodules(module_name):
         for _, m in inspect.getmembers(pycode, inspect.ismodule):
             importlib.reload(m)
 
-        logger.info('Reloaded generated Python code of module "%s".', module_name)
+        logger.info('> Reloaded generated Python code of module "%s".', module_name)
         return pycode
 
     return None

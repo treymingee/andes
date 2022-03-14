@@ -4,7 +4,7 @@ import numpy as np
 
 from andes.core import (Algeb, ConstService, ExtAlgeb, ExtParam, ExtService,
                         IdxParam, Lag, Limiter, Model, ModelData, NumParam,
-                        Piecewise, Switcher,)
+                        Piecewise, Switcher, IsEqual)
 from andes.core.block import (DeadBand1, GainLimiter, LagAWFreeze, LagFreeze,
                               LagRate, PITrackAWFreeze,)
 from andes.core.service import (ApplyFunc, DataSelect, ExtendedEvent, Replace,
@@ -332,7 +332,7 @@ class REECA1Model(Model):
 
         self.Iqcmd = ExtAlgeb(model='RenGen', src='Iqcmd', indexer=self.reg, export=False,
                               info='Retrieved Iqcmd of RenGen',
-                              e_str='-Iqcmd0 + IqHL_y',
+                              e_str='-Iqcmd0 - IqHL_y',   # negative sign here, different from `Ipcmd`
                               )
 
         self.p0 = ExtService(model='RenGen',
@@ -357,10 +357,7 @@ class REECA1Model(Model):
                                     info='Initial power factor angle',
                                     )
         # flag devices with `p0`=0, which causes `tan(PF) = +inf`
-        self.zp0 = ConstService(v_str='Eq(p0, 0)',
-                                vtype=float,
-                                tex_name='z_{p0}',
-                                )
+        self.zp = IsEqual(self.p0, 0, cache=True)
 
         # --- Discrete components ---
         self.Vcmp = Limiter(u=self.v, lower=self.Vdip, upper=self.Vup, tex_name='V_{cmp}',
@@ -398,16 +395,16 @@ class REECA1Model(Model):
         self.qref0.v_str = 'SWQ_s1 * (v - Vref1) + SWQ_s0 * Iqcmd0 * (v * VLower_zi + 0.01 * VLower_zl)'
         self.Qref = Algeb(tex_name='Q_{ref}',
                           info='external Q ref',
-                          v_str='qref0',
-                          e_str='qref0 - Qref',
+                          v_str='-qref0',  # negative sign to be consistent with the direction of Qcpf
+                          e_str='-qref0 - Qref',
                           unit='p.u.',
                           )
 
-        # ignore `Qcpf` if `pfaref` is pi/2 by multiplying (1-zp0)
+        # ignore `Qcpf` if `pfaref` is pi/2 by multiplying (1-zp_z1)
         self.Qcpf = Algeb(tex_name='Q_{cpf}',
                           info='Q calculated from P and power factor',
                           v_str='q0',
-                          e_str='(1-zp0) * (S1_y * tan(pfaref) - Qcpf)',
+                          e_str='(1-zp_z1) * (S1_y * tan(pfaref) - Qcpf)',
                           diag_eps=True,
                           unit='p.u.',
                           )
