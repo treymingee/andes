@@ -91,4 +91,7 @@ class EVControlModel(EV2Model):
                           e_str='(Pcluster + (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster))*freqDB_zl - (freqDev/FDevMax)*(Pcmax*NumEV - Pcluster)*freqDB_zu - Pnew'
         )
 
-        
+class EVControl(EVControlData, EVControlModel):
+    def __init__(self, system, config):
+        EVControlData.__init__(self)
+        EVControlModel.__init__(self, system, config)
